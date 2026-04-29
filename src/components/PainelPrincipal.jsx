@@ -1,57 +1,99 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend 
-} from 'recharts';
-
-// 1. IMPORTAÇÕES DA CONSTELAÇÃO
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 
+// Importando meus novos blocos fatiados
+import ChatMordomo from './ChatMordomo';
+import FormulariosRendaDespesa from './FormulariosRendaDespesa';
+import CardsPrincipais from './CardsPrincipais';
+
 const CORES_PIZZA = ['#00F0FF', '#007BFF', '#8A2BE2', '#FF007F', '#00FA9A'];
+
+// Estilos que sobraram para a mesa principal
+const glassCardStyle = { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.15)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255, 255, 255, 0.08)', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)' };
+const cardTitleStyle = { margin: '0 0 20px 0', color: '#94A3B8', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' };
+const inputStyle = { padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#E2E8F0', fontSize: '14px', outline: 'none', transition: '0.3s' };
+const btnNeonStyle = { padding: '14px 25px', backgroundColor: 'transparent', color: '#00F0FF', border: '1px solid #00F0FF', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 0 10px rgba(0, 240, 255, 0.2)', textTransform: 'uppercase', letterSpacing: '1px' };
 
 function PainelPrincipal({ aoSair }) {
   const [mensagens, setMensagens] = useState([{ remetente: 'mordomo', texto: 'Sistemas online. Monitoramento financeiro ativado, Senhor.' }]);
   const [mensagemDigitada, setMensagemDigitada] = useState('');
   const [carregando, setCarregando] = useState(false);
-  const [init, setInit] = useState(false); // Estado para saber se as partículas carregaram
+  const [init, setInit] = useState(false); 
 
   const [dados, setDados] = useState({
     saldo_atual: 0, total_receitas: 0, total_despesas: 0,
     grafico_pizza: [], grafico_linha: [], ultimas_transacoes: [], categorias: []
   });
-
   const [formManual, setFormManual] = useState({ descricao: '', valor: '', categoria_id: '', tipo: 'despesa' });
 
-  // 2. INICIALIZADOR DO MOTOR DE PARTÍCULAS
+  const [renda, setRenda] = useState(0); 
+  const [novaRendaInput, setNovaRendaInput] = useState('');
+  const [despesas, setDespesas] = useState([]);
+  const [novaDespesa, setNovaDespesa] = useState({ descricao: '', valor: '', parcelas_totais: '' });
+
   useEffect(() => {
-    initParticlesEngine(async (engine) => {
-      await loadSlim(engine);
-    }).then(() => {
-      setInit(true);
-    });
+    carregarMeusDados();
+    carregarDashboard();
   }, []);
+
+  const carregarMeusDados = async () => {
+    const token = localStorage.getItem('access_token'); 
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    try {
+      const resRenda = await fetch('http://127.0.0.1:8000/api/perfil/', { headers });
+      if (resRenda.ok) {
+        const dadosRenda = await resRenda.json();
+        setRenda(dadosRenda.renda_mensal);
+      }
+      const resDespesas = await fetch('http://127.0.0.1:8000/api/despesas-fixas/', { headers });
+      if (resDespesas.ok) {
+        const dadosDespesas = await resDespesas.json();
+        setDespesas(dadosDespesas);
+      }
+    } catch (error) { console.error("Erro ao carregar dados:", error); }
+  };
+
+  const salvarNovaRenda = async () => {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch('http://127.0.0.1:8000/api/perfil/', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ renda_mensal: novaRendaInput })
+    });
+    if (res.ok) { setRenda(novaRendaInput); setNovaRendaInput(''); }
+  };
+
+  const salvarNovaDespesa = async () => {
+    const token = localStorage.getItem('access_token');
+    const dadosParaEnviar = { descricao: novaDespesa.descricao, valor: novaDespesa.valor, parcelas_totais: novaDespesa.parcelas_totais ? novaDespesa.parcelas_totais : null };
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/despesas-fixas/', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(dadosParaEnviar)
+      });
+      if (res.ok) {
+        alert("✅ Despesa adicionada com sucesso!"); 
+        carregarMeusDados(); 
+        setNovaDespesa({ descricao: '', valor: '', parcelas_totais: '' }); 
+      } else { alert("❌ Erro ao salvar! Aperte F12 e olhe a aba Console."); }
+    } catch (err) { alert("❌ Falha de conexão."); }
+  };
 
   const carregarDashboard = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const res = await axios.get('http://127.0.0.1:8000/api/dashboard/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get('http://127.0.0.1:8000/api/dashboard/', { headers: { Authorization: `Bearer ${token}` } });
       setDados(res.data);
     } catch (err) { console.error(err); }
   };
-
-  useEffect(() => { carregarDashboard(); }, []);
 
   const salvarManual = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('access_token');
-      await axios.post('http://127.0.0.1:8000/api/dashboard/', formManual, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post('http://127.0.0.1:8000/api/dashboard/', formManual, { headers: { Authorization: `Bearer ${token}` } });
       setFormManual({ descricao: '', valor: '', categoria_id: '', tipo: 'despesa' });
       carregarDashboard();
     } catch (err) { alert("Erro ao salvar"); }
@@ -64,9 +106,7 @@ function PainelPrincipal({ aoSair }) {
     setCarregando(true);
     try {
       const token = localStorage.getItem('access_token');
-      const res = await axios.post('http://127.0.0.1:8000/api/chat/', { mensagem: mensagemDigitada }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.post('http://127.0.0.1:8000/api/chat/', { mensagem: mensagemDigitada }, { headers: { Authorization: `Bearer ${token}` } });
       setMensagens(p => [...p, { remetente: 'mordomo', texto: res.data.resposta_mordomo }]);
       setMensagemDigitada('');
       carregarDashboard();
@@ -75,64 +115,22 @@ function PainelPrincipal({ aoSair }) {
 
   const formatar = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-  // 3. A RECEITA DA CONSTELAÇÃO (Parâmetros visuais)
+  useEffect(() => {
+    initParticlesEngine(async (engine) => { await loadSlim(engine); }).then(() => { setInit(true); });
+  }, []);
+
   const configuracaoParticulas = useMemo(() => ({
-    background: {
-      color: { value: "#0A1118" }, // Fundo espacial
-    },
-    fpsLimit: 60,
-    interactivity: {
-      events: {
-        onHover: { enable: true, mode: "grab" }, // Linhas grudam no mouse
-      },
-      modes: {
-        grab: { distance: 150, links: { opacity: 0.5 } },
-      },
-    },
-    particles: {
-      color: { value: "#00F0FF" }, // Cor Neon dos pontos
-      links: {
-        color: "#00F0FF", // Cor Neon das linhas
-        distance: 150,
-        enable: true,
-        opacity: 0.2,
-        width: 1,
-      },
-      move: {
-        enable: true,
-        speed: 0.8, // Velocidade suave e sofisticada
-        direction: "none",
-        random: false,
-        straight: false,
-        outModes: { default: "bounce" },
-      },
-      number: {
-        density: { enable: true, area: 800 },
-        value: 60, // Quantidade de estrelas
-      },
-      opacity: { value: 0.5 },
-      shape: { type: "circle" },
-      size: { value: { min: 1, max: 3 } },
-    },
+    background: { color: { value: "#0A1118" } },
+    fpsLimit: 60, interactivity: { events: { onHover: { enable: true, mode: "grab" } }, modes: { grab: { distance: 150, links: { opacity: 0.5 } } } },
+    particles: { color: { value: "#00F0FF" }, links: { color: "#00F0FF", distance: 150, enable: true, opacity: 0.2, width: 1 }, move: { enable: true, speed: 0.8, outModes: { default: "bounce" } }, number: { density: { enable: true, area: 800 }, value: 120 }, opacity: { value: 0.5 }, shape: { type: "circle" }, size: { value: { min: 1, max: 3 } } },
     detectRetina: true,
   }), []);
 
   return (
-    // position: 'relative' no wrapper principal para conter o z-index
     <div style={{ position: 'relative', display: 'flex', minHeight: '100vh', backgroundColor: '#0A1118', color: '#E2E8F0', fontFamily: '"Inter", sans-serif' }}>
-      
-      {/* O COMPONENTE DAS PARTÍCULAS RENDERIZANDO NO FUNDO */}
-      {init && (
-        <Particles
-          id="tsparticles"
-          options={configuracaoParticulas}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}
-        />
-      )}
+      {init && <Particles id="tsparticles" options={configuracaoParticulas} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }} />}
 
-      {/* Z-INDEX: 1 PARA O CONTEÚDO FICAR POR CIMA DAS PARTÍCULAS */}
       <div style={{ flex: 2, padding: '40px', display: 'flex', flexDirection: 'column', gap: '35px', zIndex: 1 }}>
-        
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ margin: 0, fontWeight: '600', letterSpacing: '-0.5px' }}>Dashboard Financeiro</h1>
@@ -143,16 +141,16 @@ function PainelPrincipal({ aoSair }) {
           </button>
         </div>
 
-        {/* CARDS TOTAIS */}
-        <div style={{ display: 'flex', gap: '25px' }}>
-          <Card titulo="SALDO ATUAL" valor={formatar(dados.saldo_atual)} cor="#00F0FF" />
-          <Card titulo="ENTRADAS (MÊS)" valor={formatar(dados.total_receitas)} cor="#00FA9A" />
-          <Card titulo="SAÍDAS (MÊS)" valor={formatar(dados.total_despesas)} cor="#FF007F" />
-        </div>
+        {/* --- MEUS BLOCOS FATIADOS E IMPORTADOS --- */}
+        <CardsPrincipais dados={dados} formatar={formatar} />
+        
+        <FormulariosRendaDespesa 
+          renda={renda} formatar={formatar} novaRendaInput={novaRendaInput} setNovaRendaInput={setNovaRendaInput} salvarNovaRenda={salvarNovaRenda}
+          novaDespesa={novaDespesa} setNovaDespesa={setNovaDespesa} salvarNovaDespesa={salvarNovaDespesa} despesas={despesas}
+        />
 
+        {/* Linha 3: Transações e Gráfico de Distribuição */}
         <div style={{ display: 'flex', gap: '25px' }}>
-          
-          {/* FORMULÁRIO MANUAL */}
           <div style={glassCardStyle}>
             <h3 style={cardTitleStyle}>📍 Nova Transação</h3>
             <form onSubmit={salvarManual} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -170,7 +168,6 @@ function PainelPrincipal({ aoSair }) {
             </form>
           </div>
 
-          {/* GRÁFICO DE PIZZA */}
           <div style={{ ...glassCardStyle, flex: 1.5, minHeight: '380px' }}>
             <h3 style={cardTitleStyle}>📊 Distribuição</h3>
             <div style={{ flex: 1, width: '100%', height: '300px' }}>
@@ -187,7 +184,7 @@ function PainelPrincipal({ aoSair }) {
           </div>
         </div>
 
-        {/* GRÁFICO DE LINHA NEON */}
+        {/* Linha 4: Gráfico de Evolução */}
         <div style={{ ...glassCardStyle, height: '450px' }}>
           <h3 style={cardTitleStyle}>📈 Evolução do Cofre</h3>
           <div style={{ flex: 1, width: '100%', height: '350px' }}>
@@ -210,104 +207,14 @@ function PainelPrincipal({ aoSair }) {
         </div>
       </div>
 
-      {/* COLUNA DIREITA: CHAT MORDOMO */}
-      <div style={{ width: '420px', padding: '40px 40px 40px 0', position: 'sticky', top: 0, height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', zIndex: 1 }}>
-        
-        <div style={{ height: '70%', minHeight: '500px', backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', flexDirection: 'column', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', overflow: 'hidden' }}>
-          
-          <div style={{ padding: '25px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', color: '#00F0FF', letterSpacing: '1px', textTransform: 'uppercase' }}>
-              <span style={{ width: '8px', height: '8px', backgroundColor: '#00F0FF', borderRadius: '50%', boxShadow: '0 0 10px #00F0FF' }}></span>
-              Mordomo IA
-            </h3>
-            {carregando && <span style={{fontSize: '12px', color: '#94A3B8'}}>Processando...</span>}
-          </div>
+      {/* --- O CHAT FATIADO --- */}
+      <ChatMordomo 
+        mensagens={mensagens} mensagemDigitada={mensagemDigitada} 
+        setMensagemDigitada={setMensagemDigitada} enviarChat={enviarChat} carregando={carregando} 
+      />
 
-          <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {mensagens.map((m, i) => (
-              <div key={i} style={{ 
-                alignSelf: m.remetente === 'usuario' ? 'flex-end' : 'flex-start', 
-                backgroundColor: m.remetente === 'usuario' ? 'rgba(0, 240, 255, 0.1)' : 'rgba(30, 41, 59, 0.8)', 
-                border: m.remetente === 'usuario' ? '1px solid rgba(0, 240, 255, 0.2)' : '1px solid rgba(255, 255, 255, 0.05)',
-                color: m.remetente === 'usuario' ? '#00F0FF' : '#E2E8F0', 
-                padding: '14px 18px', 
-                borderRadius: '16px', 
-                maxWidth: '85%',
-                borderBottomRightRadius: m.remetente === 'usuario' ? '4px' : '16px',
-                borderBottomLeftRadius: m.remetente === 'mordomo' ? '4px' : '16px',
-              }}>
-                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6' }}>{m.texto}</p>
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={enviarChat} style={{ padding: '20px', display: 'flex', gap: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-            <input 
-              type="text" 
-              value={mensagemDigitada} 
-              onChange={e => setMensagemDigitada(e.target.value)} 
-              placeholder="Digite seu comando..." 
-              disabled={carregando}
-              style={{ ...inputStyle, flex: 1 }} 
-            />
-            <button type="submit" disabled={carregando} style={btnNeonStyle}>Ir</button>
-          </form>
-        </div>
-      </div>
     </div>
   );
 }
-
-
-const glassCardStyle = {
-  flex: 1,
-  backgroundColor: 'rgba(15, 23, 42, 0.15)', 
-  backdropFilter: 'blur(6px)', 
-  border: '1px solid rgba(255, 255, 255, 0.08)',
-  padding: '30px', 
-  borderRadius: '20px', 
-  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'
-};
-
-const cardTitleStyle = {
-  margin: '0 0 20px 0', 
-  color: '#94A3B8', 
-  fontSize: '14px', 
-  fontWeight: '600', 
-  textTransform: 'uppercase', 
-  letterSpacing: '1px'
-};
-
-const inputStyle = { 
-  padding: '14px', 
-  borderRadius: '10px', 
-  backgroundColor: 'rgba(15, 23, 42, 0.6)', 
-  border: '1px solid rgba(255, 255, 255, 0.1)', 
-  color: '#E2E8F0',
-  fontSize: '14px', 
-  outline: 'none',
-  transition: '0.3s'
-};
-
-const btnNeonStyle = {
-  padding: '14px 25px', 
-  backgroundColor: 'transparent', 
-  color: '#00F0FF', 
-  border: '1px solid #00F0FF', 
-  borderRadius: '10px', 
-  cursor: 'pointer', 
-  fontWeight: 'bold', 
-  fontSize: '14px',
-  boxShadow: '0 0 10px rgba(0, 240, 255, 0.2)',
-  textTransform: 'uppercase',
-  letterSpacing: '1px'
-};
-
-const Card = ({ titulo, valor, cor }) => (
-  <div style={glassCardStyle}>
-    <p style={{ margin: 0, color: '#94A3B8', fontSize: '12px', fontWeight: '800', letterSpacing: '1px' }}>{titulo}</p>
-    <h2 style={{ margin: '10px 0 0 0', color: cor, fontSize: '32px', textShadow: `0 0 20px ${cor}40` }}>{valor}</h2>
-  </div>
-);
 
 export default PainelPrincipal;
